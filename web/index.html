@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>eu-power-map</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; padding: 0; height: 100%; background: #000; color: #eee;
+    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  #map { position: absolute; inset: 0; }
+  #panel { position: absolute; top: 12px; left: 12px; right: 12px; max-width: 460px;
+    background: rgba(20,20,22,0.86); backdrop-filter: blur(6px);
+    padding: 12px 14px; border-radius: 10px; z-index: 2; }
+  #panel h1 { margin: 0 0 2px; font-size: 15px; font-weight: 600; letter-spacing: 0.2px; }
+  #panel .sub { color: #9aa; font-size: 12px; margin-bottom: 10px; }
+  #slider-row { display: flex; align-items: center; gap: 10px; }
+  #hour { flex: 1; }
+  #hour-label { font-variant-numeric: tabular-nums; min-width: 54px; text-align: right;
+    color: #ddd; font-size: 13px; }
+  #legend { display: flex; align-items: center; gap: 8px; margin-top: 10px;
+    font-size: 11px; color: #aab; }
+  #legend .bar { height: 8px; flex: 1; border-radius: 4px;
+    background: linear-gradient(to right, #440154, #3b528b, #21918c, #5ec962, #fde725); }
+  #tooltip { position: absolute; pointer-events: none; z-index: 3; display: none;
+    background: rgba(20,20,22,0.95); border: 1px solid #333; padding: 6px 8px;
+    border-radius: 6px; font-size: 12px; min-width: 120px; }
+  #tooltip .n { font-weight: 600; color: #eee; }
+  #tooltip .p { color: #fde725; font-variant-numeric: tabular-nums; }
+  @media (max-width: 480px) {
+    #panel { left: 8px; right: 8px; top: 8px; padding: 10px 12px; }
+  }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+  <h1>EU power prices</h1>
+  <div class="sub" id="date-sub">loading…</div>
+  <div id="slider-row">
+    <input id="hour" type="range" min="0" max="23" value="12" step="1" />
+    <span id="hour-label">—</span>
+  </div>
+  <div id="legend">
+    <span id="legend-min">—</span>
+    <div class="bar"></div>
+    <span id="legend-max">—</span>
+    <span>EUR/MWh</span>
+  </div>
+</div>
+<div id="tooltip"></div>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
