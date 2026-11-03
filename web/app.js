@@ -13,23 +13,22 @@ const PRICE_PROP = 'price';
 
 const map = new maplibregl.Map({
   container: 'map',
-  // Raster-only style with Carto's dark basemap; no key needed.
+  // No basemap: Carto now requires an API key and tile services add noise
+  // we don't need for a 15-polygon zone map. Solid dark background, done.
   style: {
     version: 8,
-    sources: {
-      carto: {
-        type: 'raster',
-        tiles: ['https://basemaps.cartocdn.com/dark_matter/{z}/{x}/{y}@2x.png'],
-        tileSize: 256,
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      },
-    },
-    layers: [{ id: 'basemap', type: 'raster', source: 'carto' }],
+    sources: {},
+    layers: [{
+      id: 'background',
+      type: 'background',
+      paint: { 'background-color': '#0b0d10' },
+    }],
   },
   center: [10, 51],
   zoom: 3,
   attributionControl: { compact: true },
+  // Lets screenshot tools capture the canvas; cost is minor.
+  preserveDrawingBuffer: true,
 });
 
 const $ = (id) => document.getElementById(id);

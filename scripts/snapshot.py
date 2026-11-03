@@ -14,18 +14,22 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from ingest.bucket import to_hourly  # noqa: E402
 from ingest.energy_charts import BIDDING_ZONES, EnergyChartsClient  # noqa: E402
+from ingest.labels import hour_labels  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 
 
 def snapshot(day: date) -> dict:
-    """Return one JSON-ready dict with per-country price series for `day`."""
+    """Return one JSON-ready dict with per-country hourly prices for `day`."""
+    labels = hour_labels(day)
     out: dict[str, object] = {
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "date": day.isoformat(),
         "unit": "EUR/MWh",
+        "hours": labels,
         "countries": {},
     }
     end = day + timedelta(days=1)
@@ -43,11 +47,10 @@ def snapshot(day: date) -> dict:
             if not series.unix_seconds:
                 skipped.append(f"{country}({bzn}): empty")
                 continue
-            out["countries"][country] = {
-                "bzn": bzn,
-                "unix_seconds": series.unix_seconds,
-                "price": series.price,
-            }
+            hourly = to_hourly(series.unix_seconds, series.price)
+            # Align to label order so DST 23/25-hour days line up.
+            prices = [hourly.get(h) for h in labels]
+            out["countries"][country] = {"bzn": bzn, "prices": prices}
     if skipped:
         out["skipped"] = skipped
     return out
@@ -58,7 +61,10 @@ def main() -> int:
     payload = snapshot(day)
     DATA.mkdir(exist_ok=True)
     path = DATA / f"prices_{day.isoformat()}.json"
-    path.write_text(json.dumps(payload, indent=2))
+    body = json.dumps(payload, indent=2)
+    path.write_text(body)
+    # Known URL for the web app; the dated file keeps history.
+    (DATA / "prices_latest.json").write_text(body)
     kept = len(payload["countries"])
     skipped = len(payload.get("skipped", []))
     print(f"wrote {path.relative_to(ROOT)}: {kept} zones, {skipped} skipped")
