@@ -39,7 +39,7 @@ jobs:
       - name: commit refreshed data
         run: |
           git config user.name  'Nikita Yuryev'
-          git config user.email 'nolokiop@gmail.com'
+          git config user.email '68790261+NickYuryev@users.noreply.github.com'
           git add data/
           if git diff --cached --quiet; then
             echo 'no data changes, skipping commit'
