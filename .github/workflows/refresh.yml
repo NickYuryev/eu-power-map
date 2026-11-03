@@ -1,0 +1,51 @@
+name: refresh
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras --dev
+      - run: uv run pytest -q
+
+  refresh:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras --dev
+      - name: fetch TTF daily close
+        run: uv run scripts/fetch_ttf.py
+      - name: snapshot prices + flows + spark
+        run: uv run scripts/snapshot.py
+      - name: commit refreshed data
+        run: |
+          git config user.name  'Nikita Yuryev'
+          git config user.email 'nolokiop@gmail.com'
+          git add data/
+          if git diff --cached --quiet; then
+            echo 'no data changes, skipping commit'
+            exit 0
+          fi
+          git commit -m "refresh snapshot $(date -u +%Y-%m-%dT%H:%MZ)"
+          # One pull-rebase in case something else landed on main meanwhile.
+          git pull --rebase origin main
+          git push
