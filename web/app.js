@@ -6,8 +6,17 @@ const VIRIDIS = [
   '#1f9e89', '#35b779', '#6dcd59', '#b4de2c', '#fde725',
 ];
 
+// RdBu diverging, 11 stops. Red = negative margin (losing money),
+// white at 0, blue = positive margin (making money).
+const RDBU = [
+  '#67001f', '#b2182b', '#d6604d', '#f4a582', '#fddbc7',
+  '#f7f7f7',
+  '#d1e5f0', '#92c5de', '#4393c3', '#2166ac', '#053061',
+];
+
 const DATA_URL = '../data/prices_latest.json';
 const FLOWS_URL = '../data/flows_latest.json';
+const SPARK_URL = '../data/spark_latest.json';
 const POLYGONS_URL = 'countries.json';
 
 // Hard-coded reasonable visual centers; shoelace centroids of Norway or Denmark
@@ -23,7 +32,69 @@ const FLOW_POSITIVE = '#ffb400'; // amber: flow follows A->B (ISO alphabetical)
 const FLOW_NEGATIVE = '#4fc3f7'; // cyan:  flow goes B->A
 const FLOW_MIN_MW = 50;          // hide noise below this
 
-const PRICE_PROP = 'price';
+const VALUE_PROP = 'value';
+
+const MODES = {
+  price: {
+    label: 'EUR/MWh',
+    palette: VIRIDIS,
+    stops: (vals) => {
+      const [lo, hi] = percentile(vals, 0.02, 0.98);
+      return linearStops(VIRIDIS, lo, hi, false);
+    },
+    pick: (snap, spark, iso, hour) => {
+      const c = snap.countries[iso];
+      return c ? c.prices[hour] : null;
+    },
+    rangeLabels: (snap, spark) => {
+      const vals = flat(snap, (c) => c.prices);
+      const [lo, hi] = percentile(vals, 0.02, 0.98);
+      return [lo.toFixed(0), hi.toFixed(0)];
+    },
+  },
+  spark: {
+    label: 'EUR/MWh gross margin',
+    palette: RDBU,
+    stops: (vals) => {
+      const [lo, hi] = percentile(vals, 0.02, 0.98);
+      const half = Math.max(Math.abs(lo), Math.abs(hi), 1);
+      return linearStops(RDBU, -half, half, true);
+    },
+    pick: (snap, spark, iso, hour) => {
+      const c = spark && spark.countries[iso];
+      return c ? c.spread[hour] : null;
+    },
+    rangeLabels: (snap, spark) => {
+      if (!spark) return ['—', '—'];
+      const vals = flat(spark, (c) => c.spread);
+      const half = Math.max(...vals.map(Math.abs), 1);
+      return [(-half).toFixed(0), (+half).toFixed(0)];
+    },
+  },
+};
+
+function flat(obj, pick) {
+  const out = [];
+  for (const c of Object.values(obj.countries)) {
+    for (const v of pick(c)) if (v != null) out.push(v);
+  }
+  return out;
+}
+
+function percentile(vals, qlo, qhi) {
+  if (!vals.length) return [0, 100];
+  const s = [...vals].sort((a, b) => a - b);
+  const p = (q) => s[Math.max(0, Math.min(s.length - 1, Math.floor(q * (s.length - 1))))];
+  return [p(qlo), p(qhi)];
+}
+
+function linearStops(palette, lo, hi, symmetric) {
+  const stops = [];
+  for (let i = 0; i < palette.length; i++) {
+    stops.push(lo + ((hi - lo) * i) / (palette.length - 1), palette[i]);
+  }
+  return stops;
+}
 
 const map = new maplibregl.Map({
   container: 'map',
@@ -50,33 +121,52 @@ const slider = $('hour');
 const hourLabel = $('hour-label');
 const legendMin = $('legend-min');
 const legendMax = $('legend-max');
+const legendUnit = $('legend-unit');
+const legendBar = document.querySelector('#legend .bar');
 const dateSub = $('date-sub');
 const tooltip = $('tooltip');
+const toggleBtns = document.querySelectorAll('[data-mode]');
 
 let polygons = null;
 let snapshot = null;
+let spark = null;
 let flows = null;
 let hourIdx = 0;
-let priceRange = [0, 100];
-
-function colorStops(min, max) {
-  const stops = [];
-  for (let i = 0; i < VIRIDIS.length; i++) {
-    stops.push(min + ((max - min) * i) / (VIRIDIS.length - 1), VIRIDIS[i]);
-  }
-  return stops;
-}
+let mode = 'price';
 
 function setHour() {
   const hour = snapshot.hours[hourIdx];
   hourLabel.textContent = hour ? hour.slice(11, 16) : '—';
+  const m = MODES[mode];
   const zoneFeats = polygons.features.map((f) => {
-    const c = snapshot.countries[f.properties.iso];
-    const price = c ? c.prices[hourIdx] : null;
-    return { ...f, properties: { ...f.properties, [PRICE_PROP]: price } };
+    const v = m.pick(snapshot, spark, f.properties.iso, hourIdx);
+    return { ...f, properties: { ...f.properties, [VALUE_PROP]: v } };
   });
   map.getSource('zones').setData({ type: 'FeatureCollection', features: zoneFeats });
   if (flows) map.getSource('flows').setData(flowFeatures(hourIdx));
+}
+
+function applyMode() {
+  const m = MODES[mode];
+  const [lo, hi] = m.rangeLabels(snapshot, spark);
+  legendMin.textContent = lo;
+  legendMax.textContent = hi;
+  legendUnit.textContent = m.label;
+  legendBar.style.background =
+    'linear-gradient(to right, ' + m.palette.join(', ') + ')';
+  const vals = flat(mode === 'spark' ? spark : snapshot,
+                    (c) => mode === 'spark' ? c.spread : c.prices);
+  const paint = [
+    'case',
+    ['==', ['get', VALUE_PROP], null], '#222',
+    ['interpolate', ['linear'], ['get', VALUE_PROP], ...m.stops(vals)],
+  ];
+  // Style may not be fully loaded on the first call; retry on idle.
+  const trySet = () => {
+    try { map.setPaintProperty('zone-fill', 'fill-color', paint); setHour(); }
+    catch { map.once('idle', trySet); }
+  };
+  trySet();
 }
 
 function flowFeatures(hour) {
@@ -97,32 +187,18 @@ function flowFeatures(hour) {
   return { type: 'FeatureCollection', features: feats };
 }
 
-function computeRange() {
-  const vals = [];
-  for (const c of Object.values(snapshot.countries)) {
-    for (const v of c.prices) if (v != null) vals.push(v);
-  }
-  if (!vals.length) return [0, 100];
-  vals.sort((a, b) => a - b);
-  // Trim extremes a bit so one spiky zone doesn't flatten the ramp.
-  const p = (q) => vals[Math.max(0, Math.min(vals.length - 1, Math.floor(q * (vals.length - 1))))];
-  return [p(0.02), p(0.98)];
-}
-
 async function init() {
-  [polygons, snapshot, flows] = await Promise.all([
+  [polygons, snapshot, flows, spark] = await Promise.all([
     fetch(POLYGONS_URL).then((r) => r.json()),
     fetch(DATA_URL).then((r) => r.json()),
     fetch(FLOWS_URL).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    fetch(SPARK_URL).then((r) => (r.ok ? r.json() : null)).catch(() => null),
   ]);
   slider.max = String(snapshot.hours.length - 1);
   const now = new Date();
   hourIdx = Math.min(now.getHours(), snapshot.hours.length - 1);
   slider.value = String(hourIdx);
   dateSub.textContent = `${snapshot.date} · ${Object.keys(snapshot.countries).length} zones`;
-  priceRange = computeRange();
-  legendMin.textContent = priceRange[0].toFixed(0);
-  legendMax.textContent = priceRange[1].toFixed(0);
 
   await new Promise((res) => (map.loaded() ? res() : map.once('load', res)));
 
@@ -131,14 +207,7 @@ async function init() {
     id: 'zone-fill',
     type: 'fill',
     source: 'zones',
-    paint: {
-      'fill-color': [
-        'case',
-        ['==', ['get', PRICE_PROP], null], '#222',
-        ['interpolate', ['linear'], ['get', PRICE_PROP], ...colorStops(priceRange[0], priceRange[1])],
-      ],
-      'fill-opacity': 0.78,
-    },
+    paint: { 'fill-color': '#222', 'fill-opacity': 0.78 },
   });
   map.addLayer({
     id: 'zone-outline',
@@ -162,7 +231,7 @@ async function init() {
     },
   });
 
-  setHour();
+  applyMode();
   fitToZones();
   wireInteraction();
 }
@@ -191,12 +260,22 @@ function wireInteraction() {
     setHour();
   });
 
+  toggleBtns.forEach((b) => b.addEventListener('click', () => {
+    const next = b.dataset.mode;
+    if (next === mode) return;
+    if (next === 'spark' && !spark) return;  // nothing to show yet
+    mode = next;
+    toggleBtns.forEach((x) => x.classList.toggle('on', x.dataset.mode === mode));
+    applyMode();
+  }));
+
   map.on('mousemove', 'zone-fill', (e) => {
     if (!e.features.length) return;
     const f = e.features[0];
-    const p = f.properties[PRICE_PROP];
+    const v = f.properties[VALUE_PROP];
+    const unit = MODES[mode].label;
     tooltip.innerHTML = `<div class="n">${f.properties.name}</div>
-      <div class="p">${p == null ? 'no data' : Number(p).toFixed(1) + ' EUR/MWh'}</div>`;
+      <div class="p">${v == null ? 'no data' : Number(v).toFixed(1) + ' ' + unit}</div>`;
     showTooltip(e.originalEvent.clientX, e.originalEvent.clientY);
   });
   map.on('mouseleave', 'zone-fill', () => { tooltip.style.display = 'none'; });

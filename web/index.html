@@ -26,6 +26,12 @@
   #flow-legend { display: flex; align-items: center; gap: 6px; margin-top: 6px;
     font-size: 11px; color: #aab; }
   #flow-legend .dot { width: 10px; height: 3px; border-radius: 2px; }
+  #mode-toggle { display: inline-flex; gap: 0; margin-top: 8px; border-radius: 6px;
+    overflow: hidden; border: 1px solid #333; }
+  #mode-toggle button { background: transparent; color: #aab; border: 0;
+    padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+  #mode-toggle button.on { background: #2a2a30; color: #fde725; }
+  #mode-toggle button + button { border-left: 1px solid #333; }
   #tooltip { position: absolute; pointer-events: none; z-index: 3; display: none;
     background: rgba(20,20,22,0.95); border: 1px solid #333; padding: 6px 8px;
     border-radius: 6px; font-size: 12px; min-width: 120px; }
@@ -45,11 +51,15 @@
     <input id="hour" type="range" min="0" max="23" value="12" step="1" />
     <span id="hour-label">—</span>
   </div>
+  <div id="mode-toggle">
+    <button data-mode="price" class="on">Price</button>
+    <button data-mode="spark">Spark spread</button>
+  </div>
   <div id="legend">
     <span id="legend-min">—</span>
     <div class="bar"></div>
     <span id="legend-max">—</span>
-    <span>EUR/MWh</span>
+    <span id="legend-unit">EUR/MWh</span>
   </div>
   <div id="flow-legend">
     <span class="dot" style="background:#ffb400"></span>
