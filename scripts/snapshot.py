@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ingest.bucket import to_hourly  # noqa: E402
 from ingest.energy_charts import BIDDING_ZONES, EnergyChartsClient  # noqa: E402
+from ingest.flows import build_pairs  # noqa: E402
 from ingest.labels import hour_labels  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -56,18 +57,51 @@ def snapshot(day: date) -> dict:
     return out
 
 
-def main() -> int:
-    day = date.today()
-    payload = snapshot(day)
-    DATA.mkdir(exist_ok=True)
-    path = DATA / f"prices_{day.isoformat()}.json"
+def flows_snapshot(day: date) -> dict:
+    """Hourly cross-border flows for `day`, in MW with first-ISO-positive sign."""
+    labels = hour_labels(day)
+    out: dict[str, object] = {
+        "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "date": day.isoformat(),
+        "unit": "MW",
+        "hours": labels,
+        "pairs": {},
+    }
+    end = day + timedelta(days=1)
+    responses = {}
+    skipped: list[str] = []
+    with EnergyChartsClient() as api:
+        for i, country in enumerate(BIDDING_ZONES):
+            if i:
+                time.sleep(3)
+            try:
+                responses[country] = api.fetch_cbpf(country, day, end)
+            except Exception as exc:
+                skipped.append(f"{country}: {exc.__class__.__name__}")
+    out["pairs"] = build_pairs(responses, labels)
+    if skipped:
+        out["skipped"] = skipped
+    return out
+
+
+def _write(path: Path, payload: dict) -> None:
     body = json.dumps(payload, indent=2)
     path.write_text(body)
-    # Known URL for the web app; the dated file keeps history.
-    (DATA / "prices_latest.json").write_text(body)
-    kept = len(payload["countries"])
-    skipped = len(payload.get("skipped", []))
-    print(f"wrote {path.relative_to(ROOT)}: {kept} zones, {skipped} skipped")
+    (path.parent / f"{path.stem.split('_')[0]}_latest.json").write_text(body)
+
+
+def main() -> int:
+    day = date.today()
+    DATA.mkdir(exist_ok=True)
+    prices = snapshot(day)
+    _write(DATA / f"prices_{day.isoformat()}.json", prices)
+    kept = len(prices["countries"])
+    print(f"prices: {kept}/{len(BIDDING_ZONES)} zones, "
+          f"{len(prices.get('skipped', []))} skipped")
+    flows = flows_snapshot(day)
+    _write(DATA / f"flows_{day.isoformat()}.json", flows)
+    print(f"flows: {len(flows['pairs'])} pairs, "
+          f"{len(flows.get('skipped', []))} source countries skipped")
     return 0 if kept else 1
 
 

@@ -23,6 +23,9 @@
     font-size: 11px; color: #aab; }
   #legend .bar { height: 8px; flex: 1; border-radius: 4px;
     background: linear-gradient(to right, #440154, #3b528b, #21918c, #5ec962, #fde725); }
+  #flow-legend { display: flex; align-items: center; gap: 6px; margin-top: 6px;
+    font-size: 11px; color: #aab; }
+  #flow-legend .dot { width: 10px; height: 3px; border-radius: 2px; }
   #tooltip { position: absolute; pointer-events: none; z-index: 3; display: none;
     background: rgba(20,20,22,0.95); border: 1px solid #333; padding: 6px 8px;
     border-radius: 6px; font-size: 12px; min-width: 120px; }
@@ -47,6 +50,11 @@
     <div class="bar"></div>
     <span id="legend-max">—</span>
     <span>EUR/MWh</span>
+  </div>
+  <div id="flow-legend">
+    <span class="dot" style="background:#ffb400"></span>
+    <span class="dot" style="background:#4fc3f7"></span>
+    <span>cross-border flow · width &prop; MW, colour = direction</span>
   </div>
 </div>
 <div id="tooltip"></div>

@@ -7,7 +7,21 @@ const VIRIDIS = [
 ];
 
 const DATA_URL = '../data/prices_latest.json';
+const FLOWS_URL = '../data/flows_latest.json';
 const POLYGONS_URL = 'countries.json';
+
+// Hard-coded reasonable visual centers; shoelace centroids of Norway or Denmark
+// land in a fjord or in Sweden, which looks wrong on the arrow layer.
+const CENTROIDS = {
+  AT: [14.5, 47.5], BE: [4.5, 50.6], CH: [8.2, 46.9], CZ: [15.5, 49.7],
+  DE: [10.4, 51.1], DK: [10.0, 56.0], ES: [-3.7, 40.4], FR: [2.5, 46.6],
+  GB: [-1.5, 52.5], IT: [12.5, 42.8], NL: [5.4, 52.2], NO: [10.0, 61.5],
+  PL: [19.1, 52.0], PT: [-8.5, 39.5], SE: [15.0, 60.0],
+};
+
+const FLOW_POSITIVE = '#ffb400'; // amber: flow follows A->B (ISO alphabetical)
+const FLOW_NEGATIVE = '#4fc3f7'; // cyan:  flow goes B->A
+const FLOW_MIN_MW = 50;          // hide noise below this
 
 const PRICE_PROP = 'price';
 
@@ -41,6 +55,7 @@ const tooltip = $('tooltip');
 
 let polygons = null;
 let snapshot = null;
+let flows = null;
 let hourIdx = 0;
 let priceRange = [0, 100];
 
@@ -52,16 +67,34 @@ function colorStops(min, max) {
   return stops;
 }
 
-function setHourPrices() {
+function setHour() {
   const hour = snapshot.hours[hourIdx];
   hourLabel.textContent = hour ? hour.slice(11, 16) : '—';
-  const feats = polygons.features.map((f) => {
+  const zoneFeats = polygons.features.map((f) => {
     const c = snapshot.countries[f.properties.iso];
     const price = c ? c.prices[hourIdx] : null;
     return { ...f, properties: { ...f.properties, [PRICE_PROP]: price } };
   });
-  const src = map.getSource('zones');
-  src.setData({ type: 'FeatureCollection', features: feats });
+  map.getSource('zones').setData({ type: 'FeatureCollection', features: zoneFeats });
+  if (flows) map.getSource('flows').setData(flowFeatures(hourIdx));
+}
+
+function flowFeatures(hour) {
+  const feats = [];
+  for (const [key, vals] of Object.entries(flows.pairs)) {
+    const v = vals[hour];
+    if (v == null || Math.abs(v) < FLOW_MIN_MW) continue;
+    const [a, b] = key.split('-');
+    const ca = CENTROIDS[a], cb = CENTROIDS[b];
+    if (!ca || !cb) continue;
+    feats.push({
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: [ca, cb] },
+      properties: { pair: key, from: v > 0 ? a : b, to: v > 0 ? b : a,
+                    flow: v, mag: Math.abs(v) },
+    });
+  }
+  return { type: 'FeatureCollection', features: feats };
 }
 
 function computeRange() {
@@ -77,9 +110,10 @@ function computeRange() {
 }
 
 async function init() {
-  [polygons, snapshot] = await Promise.all([
+  [polygons, snapshot, flows] = await Promise.all([
     fetch(POLYGONS_URL).then((r) => r.json()),
     fetch(DATA_URL).then((r) => r.json()),
+    fetch(FLOWS_URL).then((r) => (r.ok ? r.json() : null)).catch(() => null),
   ]);
   slider.max = String(snapshot.hours.length - 1);
   const now = new Date();
@@ -113,7 +147,22 @@ async function init() {
     paint: { 'line-color': '#111', 'line-width': 0.6 },
   });
 
-  setHourPrices();
+  map.addSource('flows', { type: 'geojson',
+    data: flows ? flowFeatures(hourIdx) : { type: 'FeatureCollection', features: [] } });
+  map.addLayer({
+    id: 'flow-line',
+    type: 'line',
+    source: 'flows',
+    layout: { 'line-cap': 'round' },
+    paint: {
+      'line-color': ['case', ['>', ['get', 'flow'], 0], FLOW_POSITIVE, FLOW_NEGATIVE],
+      'line-opacity': 0.8,
+      // sqrt-scaled width: 500 MW -> 2px, 2000 -> 4px, 5000 -> 6px
+      'line-width': ['*', 0.09, ['sqrt', ['get', 'mag']]],
+    },
+  });
+
+  setHour();
   fitToZones();
   wireInteraction();
 }
@@ -139,7 +188,7 @@ function fitToZones() {
 function wireInteraction() {
   slider.addEventListener('input', () => {
     hourIdx = Number(slider.value);
-    setHourPrices();
+    setHour();
   });
 
   map.on('mousemove', 'zone-fill', (e) => {
@@ -151,6 +200,16 @@ function wireInteraction() {
     showTooltip(e.originalEvent.clientX, e.originalEvent.clientY);
   });
   map.on('mouseleave', 'zone-fill', () => { tooltip.style.display = 'none'; });
+
+  map.on('mousemove', 'flow-line', (e) => {
+    if (!e.features.length) return;
+    const f = e.features[0];
+    const mw = Math.round(f.properties.mag);
+    tooltip.innerHTML = `<div class="n">${f.properties.from} &rarr; ${f.properties.to}</div>
+      <div class="p">${mw.toLocaleString()} MW</div>`;
+    showTooltip(e.originalEvent.clientX, e.originalEvent.clientY);
+  });
+  map.on('mouseleave', 'flow-line', () => { tooltip.style.display = 'none'; });
 }
 
 function showTooltip(x, y) {
