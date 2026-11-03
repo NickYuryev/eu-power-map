@@ -1,0 +1,6 @@
+{
+  "price_eur_per_tco2": 72.5,
+  "source_date": "2026-11-03",
+  "source": "EEX EUA Dec-26 settlement, manual snapshot",
+  "note": "Refresh by hand when it drifts. Formula: clean_dark = price - 0.49*TTF - 0.37*EUA."
+}
