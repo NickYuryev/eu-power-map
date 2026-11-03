@@ -11,12 +11,7 @@ from typing import Self
 
 import httpx
 from pydantic import BaseModel
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 BASE_URL = "https://api.energy-charts.info"
 
@@ -47,11 +42,18 @@ class FlowSeries(BaseModel):
     deprecated: bool = False
 
 
+def _is_retryable(exc: BaseException) -> bool:
+    # 400 means bad bidding zone — never retry; 429 and transient errors do.
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code != 400
+    return isinstance(exc, httpx.HTTPError)
+
+
 _retry = retry(
     reraise=True,
-    stop=stop_after_attempt(4),
-    wait=wait_exponential(multiplier=1, min=2, max=30),
-    retry=retry_if_exception_type((httpx.HTTPError,)),
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=2, min=3, max=60),
+    retry=lambda s: _is_retryable(s.outcome.exception()),
 )
 
 

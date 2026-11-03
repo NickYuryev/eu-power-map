@@ -34,7 +34,7 @@ def snapshot(day: date) -> dict:
         for i, (country, bzn) in enumerate(BIDDING_ZONES.items()):
             if i:
                 # Keep well under Energy-Charts' per-IP rate limit.
-                time.sleep(1.5)
+                time.sleep(3)
             try:
                 series = api.fetch_price(country, day, end)
             except Exception as exc:  # one zone failing shouldn't drop the rest
