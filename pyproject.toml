@@ -1,0 +1,19 @@
+[project]
+name = "eu-power-map"
+version = "0.1.0"
+description = "Live map of European power prices, cross-border flows and clean spark spreads."
+authors = [
+    { name = "Nikita Yuryev", email = "nolokiop@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28.1",
+    "pydantic>=2.14.2",
+    "python-dateutil>=4.0.0",
+    "tenacity>=9.2.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]

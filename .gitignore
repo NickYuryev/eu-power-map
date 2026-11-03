@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# venv
+.venv/
+venv/
+
+# env
+.env
+.env.local
+
+# web caches
+web/.cache/
+
+# notebooks
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
