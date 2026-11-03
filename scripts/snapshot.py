@@ -18,6 +18,7 @@ from ingest.bucket import to_hourly  # noqa: E402
 from ingest.energy_charts import BIDDING_ZONES, EnergyChartsClient  # noqa: E402
 from ingest.flows import build_pairs  # noqa: E402
 from ingest.labels import hour_labels  # noqa: E402
+from ingest.spark import compute_clean_dark  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -84,6 +85,32 @@ def flows_snapshot(day: date) -> dict:
     return out
 
 
+def spark_snapshot(prices: dict) -> dict:
+    """Apply clean-dark spark formula to a prices snapshot."""
+    ttf = json.loads((DATA / "ttf.json").read_text())
+    eua = json.loads((DATA / "eua.json").read_text())
+    out: dict[str, object] = {
+        "generated_at": prices["generated_at"],
+        "date": prices["date"],
+        "unit": "EUR/MWh gross margin",
+        "formula": "price - 0.49*TTF - 0.37*EUA",
+        "ttf_eur_per_mwh": ttf["close_eur_per_mwh"],
+        "ttf_date": ttf["date"],
+        "eua_eur_per_tco2": eua["price_eur_per_tco2"],
+        "eua_date": eua["source_date"],
+        "hours": prices["hours"],
+        "countries": {},
+    }
+    for code, c in prices["countries"].items():
+        out["countries"][code] = {
+            "bzn": c["bzn"],
+            "spread": compute_clean_dark(
+                c["prices"], ttf["close_eur_per_mwh"], eua["price_eur_per_tco2"]
+            ),
+        }
+    return out
+
+
 def _write(path: Path, payload: dict) -> None:
     body = json.dumps(payload, indent=2)
     path.write_text(body)
@@ -102,6 +129,11 @@ def main() -> int:
     _write(DATA / f"flows_{day.isoformat()}.json", flows)
     print(f"flows: {len(flows['pairs'])} pairs, "
           f"{len(flows.get('skipped', []))} source countries skipped")
+    spark = spark_snapshot(prices)
+    _write(DATA / f"spark_{day.isoformat()}.json", spark)
+    print(f"spark: {len(spark['countries'])} zones, "
+          f"TTF {spark['ttf_eur_per_mwh']} EUR/MWh, "
+          f"EUA {spark['eua_eur_per_tco2']} EUR/tCO2")
     return 0 if kept else 1
 
 
