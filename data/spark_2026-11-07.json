@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-07T13:00:14+00:00",
+  "generated_at": "2026-11-07T18:02:41+00:00",
   "date": "2026-11-07",
   "unit": "EUR/MWh gross margin",
   "formula": "price - 0.49*TTF - 0.37*EUA",
