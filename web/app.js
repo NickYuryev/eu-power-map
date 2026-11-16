@@ -28,9 +28,8 @@ const CENTROIDS = {
   PL: [19.1, 52.0], PT: [-8.5, 39.5], SE: [15.0, 60.0],
 };
 
-const FLOW_POSITIVE = '#ffb400'; // amber: flow follows A->B (ISO alphabetical)
-const FLOW_NEGATIVE = '#4fc3f7'; // cyan:  flow goes B->A
-const FLOW_MIN_MW = 50;          // hide noise below this
+const FLOW_COLOR = '#ffb400';  // single colour: direction shown by dash animation
+const FLOW_MIN_MW = 50;        // hide noise below this
 
 const VALUE_PROP = 'value';
 
@@ -177,11 +176,12 @@ function flowFeatures(hour) {
     const [a, b] = key.split('-');
     const ca = CENTROIDS[a], cb = CENTROIDS[b];
     if (!ca || !cb) continue;
+    // Reverse coords for negative flow so the dash always marches source -> destination.
+    const [from, to, cFrom, cTo] = v > 0 ? [a, b, ca, cb] : [b, a, cb, ca];
     feats.push({
       type: 'Feature',
-      geometry: { type: 'LineString', coordinates: [ca, cb] },
-      properties: { pair: key, from: v > 0 ? a : b, to: v > 0 ? b : a,
-                    flow: v, mag: Math.abs(v) },
+      geometry: { type: 'LineString', coordinates: [cFrom, cTo] },
+      properties: { pair: key, from, to, mag: Math.abs(v) },
     });
   }
   return { type: 'FeatureCollection', features: feats };
@@ -198,7 +198,7 @@ async function init() {
   const now = new Date();
   hourIdx = Math.min(now.getHours(), snapshot.hours.length - 1);
   slider.value = String(hourIdx);
-  dateSub.textContent = `${snapshot.date} · ${Object.keys(snapshot.countries).length} zones`;
+  dateSub.textContent = `${snapshot.date} · ${Object.keys(snapshot.countries).length} zones · day-ahead auction (EPEX SPOT / Nord Pool)`;
 
   await new Promise((res) => (map.loaded() ? res() : map.once('load', res)));
 
@@ -224,16 +224,37 @@ async function init() {
     source: 'flows',
     layout: { 'line-cap': 'round' },
     paint: {
-      'line-color': ['case', ['>', ['get', 'flow'], 0], FLOW_POSITIVE, FLOW_NEGATIVE],
-      'line-opacity': 0.8,
+      'line-color': FLOW_COLOR,
+      'line-opacity': 0.85,
       // sqrt-scaled width: 500 MW -> 2px, 2000 -> 4px, 5000 -> 6px
       'line-width': ['*', 0.09, ['sqrt', ['get', 'mag']]],
+      'line-dasharray': [0, 4, 3],
     },
   });
+  animateFlow();
 
   applyMode();
   fitToZones();
   wireInteraction();
+}
+
+// Marching dashes = arrow direction. Phase sweeps through 14 dasharrays in a
+// loop; each line's coords are oriented source->destination in flowFeatures,
+// so the motion always reads as "flow goes this way".
+const DASH_SEQ = [
+  [0, 4, 3], [0.5, 4, 2.5], [1, 4, 2], [1.5, 4, 1.5],
+  [2, 4, 1], [2.5, 4, 0.5], [3, 4, 0],
+  [0, 0.5, 3, 3.5], [0, 1, 3, 3], [0, 1.5, 3, 2.5],
+  [0, 2, 3, 2], [0, 2.5, 3, 1.5], [0, 3, 3, 1], [0, 3.5, 3, 0.5],
+];
+let _dashStep = -1;
+function animateFlow(ts) {
+  const next = Math.floor(((ts || 0) / 60) % DASH_SEQ.length);
+  if (next !== _dashStep) {
+    try { map.setPaintProperty('flow-line', 'line-dasharray', DASH_SEQ[next]); } catch {}
+    _dashStep = next;
+  }
+  requestAnimationFrame(animateFlow);
 }
 
 function fitToZones() {
