@@ -28,8 +28,9 @@ const CENTROIDS = {
   PL: [19.1, 52.0], PT: [-8.5, 39.5], SE: [15.0, 60.0],
 };
 
-const FLOW_COLOR = '#ffb400';  // single colour: direction shown by dash animation
-const FLOW_MIN_MW = 50;        // hide noise below this
+const FLOW_IN  = '#ffb400'; // amber: flow INTO the selected country (import)
+const FLOW_OUT = '#4fc3f7'; // cyan:  flow OUT of the selected country (export)
+const FLOW_MIN_MW = 50;     // hide noise below this
 
 const VALUE_PROP = 'value';
 
@@ -132,6 +133,7 @@ let spark = null;
 let flows = null;
 let hourIdx = 0;
 let mode = 'price';
+let selectedIso = null;  // which country's flows to show; null = none
 
 function setHour() {
   const hour = snapshot.hours[hourIdx];
@@ -170,18 +172,21 @@ function applyMode() {
 
 function flowFeatures(hour) {
   const feats = [];
+  if (!selectedIso) return { type: 'FeatureCollection', features: feats };
   for (const [key, vals] of Object.entries(flows.pairs)) {
     const v = vals[hour];
     if (v == null || Math.abs(v) < FLOW_MIN_MW) continue;
     const [a, b] = key.split('-');
-    const ca = CENTROIDS[a], cb = CENTROIDS[b];
+    if (selectedIso !== a && selectedIso !== b) continue;
+    const other = selectedIso === a ? b : a;
+    const ca = CENTROIDS[selectedIso], cb = CENTROIDS[other];
     if (!ca || !cb) continue;
-    // Reverse coords for negative flow so the dash always marches source -> destination.
-    const [from, to, cFrom, cTo] = v > 0 ? [a, b, ca, cb] : [b, a, cb, ca];
+    // Stored sign is "A -> B" (alphabetical). Flip for B so positive = out of selected.
+    const signedOut = selectedIso === a ? v : -v;
     feats.push({
       type: 'Feature',
-      geometry: { type: 'LineString', coordinates: [cFrom, cTo] },
-      properties: { pair: key, from, to, mag: Math.abs(v) },
+      geometry: { type: 'LineString', coordinates: [ca, cb] },
+      properties: { other, dir: signedOut > 0 ? 'out' : 'in', mag: Math.abs(signedOut) },
     });
   }
   return { type: 'FeatureCollection', features: feats };
@@ -224,37 +229,35 @@ async function init() {
     source: 'flows',
     layout: { 'line-cap': 'round' },
     paint: {
-      'line-color': FLOW_COLOR,
-      'line-opacity': 0.85,
+      'line-color': ['case', ['==', ['get', 'dir'], 'in'], FLOW_IN, FLOW_OUT],
+      'line-opacity': 0.9,
       // sqrt-scaled width: 500 MW -> 2px, 2000 -> 4px, 5000 -> 6px
-      'line-width': ['*', 0.09, ['sqrt', ['get', 'mag']]],
-      'line-dasharray': [0, 4, 3],
+      'line-width': ['*', 0.11, ['sqrt', ['get', 'mag']]],
     },
   });
-  animateFlow();
+  map.addLayer({
+    id: 'zone-selected',
+    type: 'line',
+    source: 'zones',
+    filter: ['==', ['get', 'iso'], ''],
+    paint: { 'line-color': '#ffd166', 'line-width': 2 },
+  });
 
   applyMode();
   fitToZones();
   wireInteraction();
 }
 
-// Marching dashes = arrow direction. Phase sweeps through 14 dasharrays in a
-// loop; each line's coords are oriented source->destination in flowFeatures,
-// so the motion always reads as "flow goes this way".
-const DASH_SEQ = [
-  [0, 4, 3], [0.5, 4, 2.5], [1, 4, 2], [1.5, 4, 1.5],
-  [2, 4, 1], [2.5, 4, 0.5], [3, 4, 0],
-  [0, 0.5, 3, 3.5], [0, 1, 3, 3], [0, 1.5, 3, 2.5],
-  [0, 2, 3, 2], [0, 2.5, 3, 1.5], [0, 3, 3, 1], [0, 3.5, 3, 0.5],
-];
-let _dashStep = -1;
-function animateFlow(ts) {
-  const next = Math.floor(((ts || 0) / 60) % DASH_SEQ.length);
-  if (next !== _dashStep) {
-    try { map.setPaintProperty('flow-line', 'line-dasharray', DASH_SEQ[next]); } catch {}
-    _dashStep = next;
+function updateFlowLegend() {
+  const el = document.getElementById('flow-legend');
+  if (selectedIso) {
+    el.innerHTML =
+      `<span class="dot" style="background:${FLOW_IN}"></span>into ${selectedIso}` +
+      `<span class="dot" style="background:${FLOW_OUT};margin-left:10px"></span>out of ${selectedIso}` +
+      `<span class="hint" style="margin-left:10px">click again to clear</span>`;
+  } else {
+    el.innerHTML = '<span class="hint">click a country to see its flows</span>';
   }
-  requestAnimationFrame(animateFlow);
 }
 
 function fitToZones() {
@@ -305,11 +308,24 @@ function wireInteraction() {
     if (!e.features.length) return;
     const f = e.features[0];
     const mw = Math.round(f.properties.mag);
-    tooltip.innerHTML = `<div class="n">${f.properties.from} &rarr; ${f.properties.to}</div>
+    const dir = f.properties.dir;
+    const label = dir === 'in'
+      ? `${f.properties.other} &rarr; ${selectedIso}`
+      : `${selectedIso} &rarr; ${f.properties.other}`;
+    tooltip.innerHTML = `<div class="n">${label}</div>
       <div class="p">${mw.toLocaleString()} MW</div>`;
     showTooltip(e.originalEvent.clientX, e.originalEvent.clientY);
   });
   map.on('mouseleave', 'flow-line', () => { tooltip.style.display = 'none'; });
+
+  map.on('click', 'zone-fill', (e) => {
+    if (!e.features.length) return;
+    const iso = e.features[0].properties.iso;
+    selectedIso = selectedIso === iso ? null : iso;
+    map.setFilter('zone-selected', ['==', ['get', 'iso'], selectedIso || '']);
+    updateFlowLegend();
+    setHour();
+  });
 }
 
 function showTooltip(x, y) {

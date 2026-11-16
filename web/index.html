@@ -23,9 +23,12 @@
     font-size: 11px; color: #aab; }
   #legend .bar { height: 8px; flex: 1; border-radius: 4px;
     background: linear-gradient(to right, #440154, #3b528b, #21918c, #5ec962, #fde725); }
-  #flow-legend { display: flex; align-items: center; gap: 6px; margin-top: 6px;
-    font-size: 11px; color: #aab; }
-  #flow-legend .dot { width: 10px; height: 3px; border-radius: 2px; }
+  #flow-legend { display: flex; align-items: center; flex-wrap: wrap;
+    gap: 4px; margin-top: 6px; font-size: 11px; color: #aab; }
+  #flow-legend .dot { display: inline-block; width: 12px; height: 3px;
+    border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+  #flow-legend .hint { color: #778; font-style: italic; }
+  #map { cursor: pointer; }
   #mode-toggle { display: inline-flex; gap: 0; margin-top: 8px; border-radius: 6px;
     overflow: hidden; border: 1px solid #333; }
   #mode-toggle button { background: transparent; color: #aab; border: 0;
@@ -62,8 +65,7 @@
     <span id="legend-unit">EUR/MWh</span>
   </div>
   <div id="flow-legend">
-    <span class="dot" style="background:#ffb400"></span>
-    <span>cross-border flow · width &prop; MW, arrows = direction</span>
+    <span class="hint">click a country to see its flows</span>
   </div>
 </div>
 <div id="tooltip"></div>
