@@ -18,7 +18,7 @@ from ingest.bucket import to_hourly  # noqa: E402
 from ingest.energy_charts import BIDDING_ZONES, EnergyChartsClient  # noqa: E402
 from ingest.flows import build_pairs  # noqa: E402
 from ingest.labels import hour_labels  # noqa: E402
-from ingest.spark import compute_clean_dark  # noqa: E402
+from ingest.spark import compute_clean_spark  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -93,7 +93,7 @@ def spark_snapshot(prices: dict) -> dict:
         "generated_at": prices["generated_at"],
         "date": prices["date"],
         "unit": "EUR/MWh gross margin",
-        "formula": "price - 0.49*TTF - 0.37*EUA",
+        "formula": "price - TTF/0.49 - 0.37*EUA",
         "ttf_eur_per_mwh": ttf["close_eur_per_mwh"],
         "ttf_date": ttf["date"],
         "eua_eur_per_tco2": eua["price_eur_per_tco2"],
@@ -104,7 +104,7 @@ def spark_snapshot(prices: dict) -> dict:
     for code, c in prices["countries"].items():
         out["countries"][code] = {
             "bzn": c["bzn"],
-            "spread": compute_clean_dark(
+            "spread": compute_clean_spark(
                 c["prices"], ttf["close_eur_per_mwh"], eua["price_eur_per_tco2"]
             ),
         }
