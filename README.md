@@ -24,12 +24,14 @@ refreshed every hour by a GitHub Action.
 - **Price mode** &mdash; each country tinted by its day-ahead clearing price
   (EUR/MWh) for the hour the slider is parked on. Viridis ramp, min/max shown
   in the legend.
-- **Spark spread mode** &mdash; the clean dark gross margin for a modern CCGT
+- **Spark spread mode** &mdash; the clean spark gross margin for a modern CCGT
   burning TTF gas and paying for its EUA allowances:
 
   ```
-  clean_dark = price - 0.49 * TTF - 0.37 * EUA
+  clean_spark = price - TTF / eta - 0.37 * EUA
   ```
+
+  eta = 0.49 (CCGT thermal efficiency); 0.37 tCO2/MWh (CCGT emissions factor).
 
   Divergent RdBu ramp centred on zero. Red zones burn money, blue zones make
   it, white is break-even.
