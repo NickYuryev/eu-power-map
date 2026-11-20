@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-20T11:49:17+00:00",
+  "generated_at": "2026-11-20T20:19:24+00:00",
   "date": "2026-11-20",
   "unit": "EUR/MWh",
   "hours": [
@@ -114,6 +114,35 @@
         220.03,
         193.305,
         184.435
+      ]
+    },
+    "IT": {
+      "bzn": "IT-North",
+      "prices": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
       ]
     },
     "BE": {
@@ -379,7 +408,6 @@
     }
   },
   "skipped": [
-    "IT(IT-North): HTTPStatusError",
     "GB(GB): HTTPStatusError",
     "NL(NL): HTTPStatusError"
   ]
