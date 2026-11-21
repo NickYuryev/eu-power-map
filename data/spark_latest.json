@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-21T09:52:43+00:00",
+  "generated_at": "2026-11-21T17:31:50+00:00",
   "date": "2026-11-21",
   "unit": "EUR/MWh gross margin",
   "formula": "price - TTF/0.49 - 0.37*EUA",
@@ -63,6 +63,35 @@
         -15.01724489795916
       ]
     },
+    "FR": {
+      "bzn": "FR",
+      "spread": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
     "ES": {
       "bzn": "ES",
       "spread": [
@@ -119,6 +148,35 @@
         42.66275510204085,
         20.19025510204085,
         10.930255102040832
+      ]
+    },
+    "NL": {
+      "bzn": "NL",
+      "spread": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
       ]
     },
     "BE": {

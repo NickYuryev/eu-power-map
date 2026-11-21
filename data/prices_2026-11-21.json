@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-21T09:52:43+00:00",
+  "generated_at": "2026-11-21T17:31:50+00:00",
   "date": "2026-11-21",
   "unit": "EUR/MWh",
   "hours": [
@@ -58,6 +58,35 @@
         192.32
       ]
     },
+    "FR": {
+      "bzn": "FR",
+      "prices": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
     "ES": {
       "bzn": "ES",
       "prices": [
@@ -114,6 +143,35 @@
         250.0,
         227.5275,
         218.26749999999998
+      ]
+    },
+    "NL": {
+      "bzn": "NL",
+      "prices": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
       ]
     },
     "BE": {
@@ -379,8 +437,6 @@
     }
   },
   "skipped": [
-    "FR(FR): HTTPStatusError",
-    "GB(GB): HTTPStatusError",
-    "NL(NL): HTTPStatusError"
+    "GB(GB): HTTPStatusError"
   ]
 }
